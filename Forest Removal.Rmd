@@ -1,0 +1,175 @@
+---
+title: "Forest Removal"
+author: "David Clark"
+date: "July 3, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd('/Users/dave/DataScience/Projects/GitHub/Forest-Removal')
+```
+
+In this project I investigate the relationship between forest removal and
+percent forest coverage for countries in the world. Forest removal is defined as
+the total value in US dollars of all products removed during that year. Products
+are both wood and non-wood related. All data is taken from the [Gapminder](https://www.gapminder.org/) website.
+
+## Data Processing and Exploration
+
+Let's load the data and inspect it.
+
+```{r}
+forestCoverage = read.csv("data/forest_coverage.csv", header = TRUE)
+forestRemoval = read.csv("data/forest_products_per_ha.csv", header = TRUE, na.strings = "")
+```
+
+Let's view the column names:
+
+```{r}
+names(forestCoverage)
+names(forestRemoval)
+```
+
+I am only interested in the columns with data containing the country name and 
+data for a specific year. Therefore, I am interested in columns 1 - 4 for 
+`forerstCoverage` and columns 1 - 2 for `forestRemoval`.
+
+```{r}
+forestCoverage = forestCoverage[1:4]
+forestRemoval = forestRemoval[1:2]
+```
+
+Let's rename the columns so that they are more readable:
+
+```{r}
+colsForestCoverage = c("Country", "fc_1990", "fc_2000", "fc_2005")
+colnames(forestCoverage) = colsForestCoverage
+
+colsForestRemoval = c("Country", "fr_2005")
+colnames(forestRemoval) = colsForestRemoval
+```
+
+In the `forestRemoval` data frame, the values in the `fr_2005` column are factors.
+I need to convert them to numeric, so that I can perform a linear regression fit:
+
+```{r}
+forestRemoval$fr_2005 = as.numeric(levels(forestRemoval$fr_2005))[forestRemoval$fr_2005]
+```
+
+Now, let's view some metrics using `summary()`:
+
+```{r}
+summary(forestCoverage)
+summary(forestRemoval)
+```
+
+You will notice that there are many points that are NAs These are missing data
+values and I want to remove them from the analysis. I do this with the following
+commands:
+
+```{r}
+forestCoverage = na.omit(forestCoverage)
+forestRemoval = na.omit(forestRemoval)
+```
+
+Let's look at a summary of the data again, but this time with out the NA values.
+
+```{r}
+summary(forestCoverage)
+summary(forestRemoval)
+```
+
+Since I am interested in the relationship between forest removal and forest
+coverage, I need to compare each dataframe equally. This means, I am only
+interested in countries that have data for both forest removal **and** forest
+coverage. To ensure this, I will merge the two dataframes into one dataframe 
+using country to connect the two.
+
+```{r}
+forestMerged = merge(forestCoverage, forestRemoval, by='Country')
+```
+
+Now I attach the columns to the dataframe so I can reference the columns by
+column name:
+
+```{r}
+attach(forestMerged)
+```
+
+Before modeling the data, let's use `ggplot` to make a scatterplot of forest
+removal versus forest coverage for the year 2005. This is the only year where
+data exists for both set's of measurements.
+
+```{r}
+library(ggplot2)
+```
+
+```{r}
+ggplot(forestMerged, aes(x=fc_2005, y=fr_2005)) +
+        labs(title = 'Forest Removal', x='Forest Coverage (%)', y='Forest Removal') +
+        geom_point()
+```
+
+Right off you will notice a wide scatter.  Specifically, there is a larger scatter
+in forest removal for low values of forest coverage.
+
+## Linear Regression
+
+Now I am ready to start modeling the data.
+
+First, I fit a linear regression model to this dataset to see what is the 
+relationship between forest coverage and forest removal.
+
+```{r}
+lm.fit = lm(fr_2005 ~ fc_2005, data=forestMerged)
+
+coef(lm.fit)
+```
+
+The negative coefficient for `fc_2005` indicates that there is an inverse
+relationship between forest coverage and forest removal. In other words, 
+countries with more forest tend to remove less material for products.
+
+Let's look at the fit in more detail.
+
+```{r}
+summary(lm.fit)
+```
+
+Here the small R-squared value and an F-statistic with a value greater than one
+indicate a reasonable model fit.
+
+To investigate this model fit further, let's compute confidense intervals. This
+is done using the function `confint()`:
+
+```{r}
+confint(lm.fit)
+```
+
+We can also compute the confidense interval at several points using the 
+`predict()` function. I choose the percent forest coverage values of 20, 40, 60,
+and 80:
+
+```{r}
+predict(lm.fit, data.frame(fc_2005=c(20, 40, 60, 80)), interval = 'confidence')
+```
+
+As expected, the fit decreases for larger values of forest coverage. You will
+also notice that the confidense interval ranges in width from ~70 to 140. This
+could be because the are fewer points for larger values of forest coverage, 
+which makes it harder for the model to make a good fit.
+
+I now replot the scatter plot and add the regression line. I use `geom_smooth()`
+to add the regression line and include the confidense region on either side of
+the line.
+
+```{r}
+ggplot(forestMerged, aes(x=fc_2005, y=fr_2005)) +
+        labs(title = 'Forest Removal', x='Forest Coverage (%)', y='Forest Removal') +
+        geom_point() +
+        geom_smooth(method = lm)
+```
+
+
+
