@@ -128,8 +128,7 @@ coef(lm.fit)
 ```
 
 The negative coefficient for `fc_2005` indicates that there is an inverse
-relationship between forest coverage and forest removal. In other words, 
-countries with more forest tend to remove less material for products.
+relationship between forest coverage and forest removal.
 
 Let's look at the fit in more detail.
 
@@ -139,6 +138,17 @@ summary(lm.fit)
 
 Here the small R-squared value and an F-statistic with a value greater than one
 indicate a reasonable model fit.
+
+Can the model be improved by using a non-linear fit? Let's take the log of
+forest removal and see how things change:
+
+```{r}
+lm.fit = lm(log(fr_2005) ~ fc_2005, data=forestMerged)
+summary(lm.fit)
+```
+
+Now F-statistic and R-squared values have improved by almost a factor of two.
+Clearly adding a log term has improved the model fit.
 
 To investigate this model fit further, let's compute confidense intervals. This
 is done using the function `confint()`:
@@ -171,5 +181,115 @@ ggplot(forestMerged, aes(x=fc_2005, y=fr_2005)) +
         geom_smooth(method = lm)
 ```
 
+Now we can graphically see that there is a downward trend in the model fit. This
+indicates that countries with more forest tend to remove less wood. But, why does
+this trend exist? Are there other factors that contribute to forest removal? To
+investigate, let's add additional features and see how this affects the model
+fit.
 
+## Adding Features
+
+One reason countries with more forest might remove less wood is because they have
+a smaller population. Let's add population as an additional feature and see what 
+we find.
+
+Load the data:
+```{r}
+population = read.csv('data/population.csv', header = TRUE)
+attach(population)
+```
+
+Since I am only modeling data from 2005, I am only interested in the population
+for that year:
+
+```{r}
+population = population[c('Total.population', 'X2005')]
+```
+
+Rename the columns:
+
+```{r}
+colsPopulation = c("Country", "p_2005")
+colnames(population) = colsPopulation
+```
+
+Merge population dataframe with `forestMerged` dataframe:
+
+```{r}
+forestPopMerged = merge(forestMerged, population, by="Country")
+attach(forestPopMerged)
+```
+
+Performing a `summary()` on the `forestPopMerged` dataframe, we see that `p_2005`
+is of type other. We need to set this to a numeric value:
+
+```{r}
+forestPopMerged$p_2005 = as.numeric(levels(forestPopMerged$p_2005))[forestPopMerged$p_2005]
+summary(forestPopMerged)
+```
+
+Remove NA values:
+
+```{r}
+forestPopMerged = na.omit(forestPopMerged)
+summary(forestPopMerged)
+```
+
+Due to the merge, some points in the `forestMerged` dataframe have been removed.
+Let's redo the model fit and see how it has changed:
+
+```{r}
+lm.fit = lm(fr_2005 ~ fc_2005, data=forestPopMerged)
+summary(lm.fit)
+```
+
+And `log(fr_2005)`...
+
+```{r}
+lm.fit = lm(log(fr_2005) ~ fc_2005, data=forestPopMerged)
+summary(lm.fit)
+```
+
+Yes, it did improve!
+
+Let's take a look at the plot.
+
+```{r}
+ggplot(forestPopMerged, aes(x=fc_2005, y=fr_2005)) +
+        labs(title = 'Forest Removal', x='Forest Coverage (%)', y='Forest Removal') +
+        geom_point() +
+        geom_smooth(method = 'lm')
+```
+
+### Add population feature
+
+Now, let's add population as an additional feature:
+
+```{r}
+lm.fit2 = lm(fr_2005 ~ fc_2005*p_2005, data=forestPopMerged)
+summary(lm.fit2)
+```
+
+The smaller F-statistic and larger value of R-squared indicates that adding
+population as an additional feature did not improve the model fit.
+
+What if we take the log of population? Will this improve the fit?
+
+```{r}
+lm.fit2 = lm(log(fr_2005) ~ fc_2005*p_2005, data=forestPopMerged)
+summary(lm.fit2)
+```
+
+No, it did not improve the model. The fit is worse.
+
+What about `log(fr_2005)` as we did with the initial model?
+
+```{r}
+lm.fit2 = lm(log(fr_2005) ~ fc_2005*p_2005, data=forestPopMerged)
+summary(lm.fit2)
+```
+
+No, not so great either. The best fit so far is with the log of forest removal
+and forest coverage. I will continue to explore more features and see what other
+factors contribute to forest removal.
 
